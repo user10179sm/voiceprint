@@ -28,6 +28,30 @@ class Prompt:
 
 PROMPTS = (
     Prompt(
+        "note",
+        "Tell me about something you recently built, organised, learned or "
+        "tried to fix. What got you started, what choices did you make, "
+        "what went wrong and what did you think afterwards? Write the way "
+        "you would explain it to someone you know. Use real details, "
+        "without polishing your phrasing.",
+        "A familiar story invites sustained writing without a formal template.",
+        550),
+    Prompt(
+        "application",
+        "Think of something you chose to work on without being told to. "
+        "Explain what interested you, what you personally did, what was "
+        "difficult and what happened. Use your own words and real details. "
+        "This is a writing sample, not an answer to submit to an employer.",
+        "A familiar experience supplies sustained personal explanation.",
+        500),
+    Prompt(
+        "application",
+        "Pick a kind of work you would like to do. Explain what draws you "
+        "to it, which experiences shaped that interest and what you still "
+        "want to learn. Write as yourself without trying to impress anyone.",
+        "Motivation supplies a different kind of application prose.",
+        400),
+    Prompt(
         "email",
         "Think of the last email you wrote that you had to think about. "
         "Write it again from memory, to the same person, about the same "
@@ -125,10 +149,10 @@ def brief(have_words: int, target: int = 2500) -> str:
                 f"No need to write anything new.")
 
     total = sum(p.words for p in chosen)
-    L = [f"There are {have_words:,} words to work with and roughly "
-         f"{target:,} would make the profile hold. That gap closes with "
-         f"about {total} words of new writing, or by pointing at more of "
-         f"what you have already written, which is always better.",
+    L = [f"There are {have_words:,} words to work with against a collection "
+         f"goal of {target:,}. These prompts suggest about {total} words "
+         f"of new writing. They may not close the whole gap. You can also "
+         f"supply existing original writing. The goal is not an accuracy guarantee.",
          "",
          "Answer as many of these as you feel like, in your own words, "
          "without editing. Rough is better than polished: the polish is what "

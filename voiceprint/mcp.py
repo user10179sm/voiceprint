@@ -15,7 +15,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import context, store
+from . import context, onboarding, store
 from .blend import DEFAULT_FIDELITY, blend
 from .check import against_rules
 from .corpus import Corpus, NoCorpus, Sample
@@ -61,6 +61,9 @@ TOOLS = [
                 "fidelity": {"type": "number",
                              "description": "0.5 to 1.0, default 0.8. Higher holds "
                                             "closer to their own voice."},
+                "register": {"type": "string", "enum": list(context.REGISTERS) + ["unknown"],
+                             "description": "Infer this from the conversation and task. "
+                                            "Do not ask the user to choose a tone category."},
             },
             "required": ["name"],
         },
@@ -78,6 +81,7 @@ TOOLS = [
                 "draft": {"type": "string"},
                 "task": {"type": "string"},
                 "fidelity": {"type": "number"},
+                "register": {"type": "string", "enum": list(context.REGISTERS) + ["unknown"]},
             },
             "required": ["name", "draft"],
         },
@@ -115,6 +119,60 @@ TOOLS = [
         },
     },
 ]
+
+TOOLS.extend([
+    {
+        "name": "voiceprint_onboard",
+        "description": "Start or resume conversational onboarding. Returns progress and "
+                       "one next source suggestion or writing prompt. Infer context from "
+                       "the task, never ask the user to select a category. Does not read sources.",
+        "inputSchema": {"type": "object", "properties": {
+            "name": {"type": "string"},
+            "task": {"type": "string", "description": "The user's current writing task"},
+            "register": {"type": "string", "enum": list(context.REGISTERS) + ["unknown"],
+                         "description": "Context inferred by the host from the conversation"},
+        }, "required": ["name"]},
+    },
+    {
+        "name": "voiceprint_source_decision",
+        "description": "Record the user's agreement or refusal for one suggested source, "
+                       "or record that it is unavailable. Only record accepted after an explicit "
+                       "yes to the described scope. No source is read by this tool. Revoking "
+                       "or changing scope removes its session samples, saved profiles need rebuilding.",
+        "inputSchema": {"type": "object", "properties": {
+            "name": {"type": "string"},
+            "source": {"type": "string", "enum": list(onboarding.SOURCES)},
+            "decision": {"type": "string", "enum": ["accepted", "declined", "unavailable"]},
+            "scope": {"type": "string", "description": "The exact scope the user agreed to"},
+        }, "required": ["name", "source", "decision"]},
+    },
+    {
+        "name": "voiceprint_add_sample",
+        "description": "Save one original writing passage verbatim and retain its provenance. "
+                       "Confirm human authorship with the user or clear original-message evidence. "
+                       "Never treat approval of an assistant draft as human authorship. "
+                       "Validation passages stay out of the training corpus.",
+        "inputSchema": {"type": "object", "properties": {
+            "name": {"type": "string"}, "text": {"type": "string"},
+            "source": {"type": "string", "enum": list(onboarding.SOURCES) + ["prompt", "pasted"]},
+            "origin": {"type": "string", "description": "Specific original message, file or prompt"},
+            "authorship": {"type": "string", "enum": ["human", "assisted", "unknown"]},
+            "purpose": {"type": "string", "enum": ["training", "validation"]},
+            "task": {"type": "string", "description": "What this sample was written for"},
+            "register": {"type": "string", "enum": list(context.REGISTERS) + ["unknown"]},
+            "prompt_id": {"type": "string", "description": "ID returned with an onboarding prompt"},
+        }, "required": ["name", "text", "source", "origin", "authorship"]},
+    },
+    {
+        "name": "voiceprint_finish_onboarding",
+        "description": "Build the profile from saved original written training samples and "
+                       "check separate validation writing. Does not establish an accuracy rate. "
+                       "Requires validation writing. Existing profiles are protected by default.",
+        "inputSchema": {"type": "object", "properties": {
+            "name": {"type": "string"}, "overwrite": {"type": "boolean"},
+        }, "required": ["name"]},
+    },
+])
 
 
 def _text(body: str, error: bool = False) -> dict:
@@ -160,26 +218,54 @@ def _build(args: dict) -> dict:
 
 
 def _brief(args: dict) -> dict:
+    onboarding.require_current(args["name"])
     vp = store.load(args["name"])
-    ctx = context.infer(args.get("task", ""),
-                        float(args.get("fidelity", DEFAULT_FIDELITY)))
+    ctx = context.resolve(args.get("task", ""), args.get("register"),
+                          float(args.get("fidelity", DEFAULT_FIDELITY)))
     profile = vp.profile_for(ctx.register)
     if profile is None:
         return _text(f"{args['name']} has no usable profile.", error=True)
     rules = blend(profile, None, ctx.fidelity)
-    return _text(f"{ctx.reason}.\n\n" + brief_markdown(rules, vp.name))
+    fallback = (f"Using the pooled profile because {ctx.register} has insufficient "
+                "writing of its own.\n\n" if profile.register != ctx.register else "")
+    return _text(f"{ctx.reason}.\n\n" + fallback + brief_markdown(rules, vp.name))
 
 
 def _check(args: dict) -> dict:
+    onboarding.require_current(args["name"])
     vp = store.load(args["name"])
-    ctx = context.infer(args.get("task", ""),
-                        float(args.get("fidelity", DEFAULT_FIDELITY)))
+    ctx = context.resolve(args.get("task", ""), args.get("register"),
+                          float(args.get("fidelity", DEFAULT_FIDELITY)))
     profile = vp.profile_for(ctx.register)
     if profile is None:
         return _text(f"{args['name']} has no usable profile.", error=True)
     rules = blend(profile, None, ctx.fidelity)
     report = against_rules(args["draft"], rules, profile)
-    return _text(report.to_markdown())
+    fallback = (f"Using pooled writing for {ctx.register}, its own context is thin.\n\n"
+                if profile.register != ctx.register else "")
+    return _text(fallback + report.to_markdown())
+
+
+def _onboard(args: dict) -> dict:
+    return _text(json.dumps(onboarding.status(args["name"], args.get("task"),
+                                             args.get("register")), indent=2))
+
+
+def _source_decision(args: dict) -> dict:
+    return _text(json.dumps(onboarding.decide_source(
+        args["name"], args["source"], args["decision"], args.get("scope", "")), indent=2))
+
+
+def _add_sample(args: dict) -> dict:
+    return _text(json.dumps(onboarding.add_sample(
+        args["name"], args["text"], args["source"], args["origin"], args["authorship"],
+        args.get("purpose", "training"), args.get("task", ""), args.get("register"),
+        args.get("prompt_id")), indent=2))
+
+
+def _finish_onboarding(args: dict) -> dict:
+    return _text(json.dumps(onboarding.finish(args["name"],
+                                             bool(args.get("overwrite"))), indent=2))
 
 
 def _elicit(args: dict) -> dict:
@@ -203,6 +289,10 @@ def _show(args: dict) -> dict:
 
 
 HANDLERS = {
+    "voiceprint_onboard": _onboard,
+    "voiceprint_source_decision": _source_decision,
+    "voiceprint_add_sample": _add_sample,
+    "voiceprint_finish_onboarding": _finish_onboarding,
     "voiceprint_build": _build,
     "voiceprint_brief": _brief,
     "voiceprint_check": _check,

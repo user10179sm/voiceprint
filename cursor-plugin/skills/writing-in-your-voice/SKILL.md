@@ -1,6 +1,6 @@
 ---
 name: writing-in-your-voice
-description: Use when writing anything in a specific person's voice - emails, messages, documents, posts, decks, replies. Measures how they actually write from their own prose, then holds the draft to those measurements instead of guessing at their style. Triggers on "write this as me", "in my voice", "sounds like me", "draft a reply from me", or any request to produce text that must read as though a particular person wrote it.
+description: Use when helping write in a specific person's voice, including applications, emails, messages, documents and replies. Infers the writing context automatically, uses their measured profile and checks drafts. Triggers on "write this as me", "in my voice", "sounds like me" or "draft a reply from me".
 ---
 
 # Writing in your voice
@@ -25,6 +25,15 @@ phrased the request. Go to `building-a-voiceprint` instead.
 
 **1. Get the brief.** Tell it what you are writing, in plain words.
 
+Infer the context from the user's actual task, audience and document. Do not
+ask them to choose a category or tone. Pass the task and, when useful, your
+inferred `register` to `voiceprint_brief`. Use `application` for an employer's
+form answer or cover letter and `email` for correspondence, even an email
+about a job application. The host's contextual judgement takes precedence
+over the fallback keyword detector. If the selected context has too little
+writing, the tool reports its pooled fallback. Offer targeted onboarding
+rather than pretending a missing context was measured.
+
 ```bash
 vp brief yash --task "reply to Andrii about the GTM timeline"
 ```
@@ -37,16 +46,22 @@ person actually reuses, and real sentences of theirs to match.
 writing, follow the brief: the instincts are what make text read as machine
 written.
 
+Respect the user's requested output and wording. If they want prompts or
+feedback, provide those. Onboarding does not authorise a full application
+answer, invented facts, or changes to wording they asked to preserve.
+
 **3. Check.** Always. A draft you have not checked is a guess.
 
 ```bash
-vp check yash draft.md
+vp check yash draft.md --task "reply to Andrii about the GTM timeline"
 ```
 
-**4. Rewrite what failed.** Each finding names the measure, the gap, and what
-to do. Rewrite and check again. Two or three passes is normal.
+**4. Review what failed.** Use the same task and inferred register for the
+brief and check. Revise only within the user's editing instructions. A style
+score is feedback, it does not justify rewriting protected wording.
 
-Exit code 0 means it passed. Anything else means you are not finished.
+Exit code 0 means the check passed, it does not prove authorship or accuracy.
+Report remaining limitations instead of repeatedly editing to chase a score.
 
 ## What the numbers mean
 

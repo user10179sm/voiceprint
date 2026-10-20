@@ -18,7 +18,7 @@ import json
 import sys
 from pathlib import Path
 
-from voiceprint import context, elicit, store
+from voiceprint import context, elicit, onboarding, store
 from voiceprint.blend import DEFAULT_FIDELITY, blend
 from voiceprint.check import against_rules
 from voiceprint.corpus import Ladder, NoCorpus
@@ -85,6 +85,7 @@ def cmd_show(args) -> int:
 
 
 def cmd_brief(args) -> int:
+    onboarding.require_current(args.name)
     vp = store.load(args.name)
     ctx = context.infer(args.task or "", args.fidelity)
     profile = vp.profile_for(args.register or ctx.register)
@@ -109,6 +110,7 @@ def cmd_brief(args) -> int:
 
 
 def cmd_check(args) -> int:
+    onboarding.require_current(args.name)
     vp = store.load(args.name)
     draft = (Path(args.draft).read_text(encoding="utf8")
              if args.draft != "-" else sys.stdin.read())
@@ -239,6 +241,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.fn(args)
     except store.ProfileMissing as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    except ValueError as e:
         print(str(e), file=sys.stderr)
         return 2
     except KeyboardInterrupt:

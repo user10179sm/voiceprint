@@ -18,6 +18,8 @@ from .corpus import Corpus, Sample
 from .profile import Profile, _profile
 
 REGISTERS = {
+    "application": "Job applications and cover letters. Personal, specific and professional.",
+    "spoken": "Transcribed speech. Kept separate from written samples.",
     "email": "Correspondence. Direct, addressed to someone.",
     "chat": "Short messages. Fragmentary, informal.",
     "memo": "Internal writing. Structured but plain.",
@@ -33,6 +35,12 @@ REGISTERS = {
 FLOOR = 0.5
 
 CUES = [
+    (r"\b(email|e-mail|inbox)\b", "email"),
+    (r"\b(cover(ing)? letter|personal statement|supporting statement|"
+     r"(job|internship|placement|graduate|spring week) applications?|"
+     r"application for (a |an )?(job|internship|placement|graduate role)|"
+     r"application (form|question|answer)|why (this|our) (role|company))\b",
+     "application"),
     (r"\b(email|e-mail|reply|respond to|write back|inbox)\b", "email"),
     (r"\b(teams|slack|dm|message|chat|ping)\b", "chat"),
     (r"\b(memo|brief|one[- ]pager|internal)\b", "memo"),
@@ -78,16 +86,28 @@ def infer(task: str, default_fidelity: float = 0.80) -> Context:
     reason = f"register inferred as {register}"
     if FORMAL.search(t):
         fidelity = max(FLOOR, default_fidelity - 0.1)
-        reason += "; formal cues, so convention is given more room"
+        reason += ", formal cues, so convention is given more room"
     elif CASUAL.search(t):
         fidelity = min(0.95, default_fidelity + 0.1)
-        reason += "; informal cues, so your own voice is held closer"
+        reason += ", informal cues, so your own voice is held closer"
 
     if register == "unknown":
         fidelity = min(0.95, default_fidelity + 0.05)
         reason = ("no register cues found, so the writing stays as close to "
                   "your own as possible")
     return Context(register=register, fidelity=round(fidelity, 2), reason=reason)
+
+
+def resolve(task: str, register: str | None = None,
+            default_fidelity: float = 0.80) -> Context:
+    """Use the host's conversational context, falling back to task cues."""
+    ctx = infer(task, default_fidelity)
+    if register is not None:
+        if register not in REGISTERS and register != "unknown":
+            raise ValueError(f"Unknown writing context {register!r}")
+        ctx.register = register
+        ctx.reason = f"register supplied by the host as {register}"
+    return ctx
 
 
 def from_examples(texts: list[str], register: str = "context") -> Profile | None:

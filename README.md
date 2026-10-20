@@ -1,5 +1,54 @@
 # voiceprint
 
+**Conversational onboarding fork** of [sometimesyash/voiceprint](https://github.com/sometimesyash/voiceprint),
+originally created by Yash and distributed under the MIT licence.
+
+This version adds onboarding inside Codex: say **"learn how I write"**,
+answer writing prompts, and optionally agree to specific sources such as your
+own sent emails or original application answers. Codex infers the writing
+context automatically. Progress is saved between conversations.
+
+## Install this fork in Codex
+
+Requires Python 3.10 or newer and the Codex CLI on your PATH. On macOS or Linux:
+
+```bash
+git clone https://github.com/user10179sm/voiceprint.git
+cd voiceprint
+python3 scripts/install_codex.py
+```
+
+You can also choose **Code > Download ZIP** on GitHub, extract it into a
+permanent folder, open a terminal there and run the last command.
+
+The installer links both skills into `~/.agents/skills` and registers this
+checkout's Python server as `voiceprint`. It replaces an existing MCP server
+with that name, and refuses to overwrite unrelated skill folders. It uses
+only Python's standard library, with no package install or API key required
+for the measurement server. Keep the checkout in place. Restart Codex, start
+a new chat and say **"learn how I write"**. Your normal Codex account and
+usage limits still apply.
+
+Check the connection with `codex mcp get voiceprint`. To update a Git clone,
+run `git pull` in this folder and restart Codex. To uninstall, run
+`codex mcp remove voiceprint` and remove the two skill links from
+`~/.agents/skills`. Your locally saved writing is retained until you delete it.
+
+The recommended install is for macOS and Linux. Windows symlink permissions
+and other hosts have not been tested with this installer. The plugin folders
+are inherited distribution layouts, the commands above are the verified
+installation route for this fork. See [verification notes](docs/onboarding-verification.md).
+
+No personal emails, application answers or voice profiles are bundled.
+The host needs its own source connections and the user's agreement before
+reading existing writing. Copying the skill alone does not install the server.
+
+Installation follows the official [local skill locations](https://learn.chatgpt.com/docs/build-skills)
+and [MCP CLI configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli),
+checked 20 October 2026.
+
+## Original measurement tools
+
 Measure how a person writes. Hold generated prose to the measurement.
 
 Anything a model writes for you drifts toward the way models write: sentences
@@ -10,11 +59,12 @@ instruction is an adjective and the problem is a distribution.
 This measures a person's writing and gives the model numbers to hit instead.
 
 ```bash
-pip install voiceprint
+python3 -m venv .venv
+.venv/bin/python -m pip install .
 
-vp build yash ~/Documents/writing
-vp brief yash --task "reply to a colleague about the timeline"   # before drafting
-vp check yash draft.md                                            # after
+.venv/bin/vp build yash ~/Documents/writing
+.venv/bin/vp brief yash --task "reply to a colleague about the timeline"
+.venv/bin/vp check yash draft.md
 ```
 
 ## Read this before trusting a number
@@ -68,6 +118,40 @@ strangeness 5%: that share of other people's writing sits this close at 132 word
 ```
 
 ## Not enough writing?
+
+### Conversational onboarding
+
+The `building-a-voiceprint` skill can now guide this inside Codex. The host
+infers the context from the conversation, including job applications and
+email, so the user does not choose a tone category. It suggests original
+writing sources one at a time, records agreement or refusal, and fills gaps
+with substantial writing prompts. Users can skip sources and begin writing.
+
+The MCP tools are `voiceprint_onboard`, `voiceprint_source_decision`,
+`voiceprint_add_sample` and `voiceprint_finish_onboarding`. They save progress
+after each accepted passage, retain provenance, and keep validation writing
+out of the profile-building corpus. The host supplies agreed source text,
+these tools do not connect to mailboxes themselves. Assisted or unknown
+authorship is rejected. Transcripts stay separate from written profiles.
+
+Collections contain raw writing in `onboarding/<name>.json` under the profile
+data directory. They can be inspected or deleted independently of the profile.
+Revoking or narrowing source agreement removes its collection samples, a
+saved profile changes only when rebuilt. A rebuild uses the saved collection,
+it does not reconstruct an older standalone profile's original corpus. Brief
+and check commands refuse a profile marked stale after source revocation.
+
+`voiceprint_brief` and `voiceprint_check` accept a host-inferred `register`.
+This lets Codex use conversational context when task keywords are ambiguous.
+They report a pooled fallback when a context lacks enough writing.
+
+Writing lengths and collection goals are guidance, not accuracy guarantees.
+Validation rejects shared sequences of at least the sample minimum word count
+across training and validation, but cannot detect paraphrases. A held-out
+check alone does not establish an accuracy rate. The modified skill and MCP
+server must be connected to the host, cloning this repo does not activate them.
+
+### Prompts without a saved conversation
 
 ```bash
 vp elicit yash

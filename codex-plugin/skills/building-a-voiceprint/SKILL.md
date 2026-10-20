@@ -1,131 +1,136 @@
 ---
 name: building-a-voiceprint
-description: Use when someone wants their writing style captured, or when writing-in-your-voice reports no profile exists. Gathers a person's own prose from connected sources, files they name, or text they paste, then measures it into a stored markdown profile. Triggers on "learn how I write", "build my voiceprint", "capture my style", "profile my writing", or a missing profile blocking another task.
+description: Build or improve a writing voice profile through conversational onboarding, original writing sources and substantial writing prompts. Use for "learn how I write", "capture my style", "build my voiceprint", or a missing or thin profile. Collects real prose, never generates a substitute.
 ---
 
 # Building a voiceprint
 
-A voiceprint is measured from writing the person actually produced. It is
-never inferred, never generated, and never guessed from what you know about
-them. If there is no writing, there is no profile, and the honest answer is to
-say so.
+Collect writing the person actually produced. Background facts, approved
+assistant drafts and summaries about the person do not establish their voice.
+The tool measures samples into a profile, it does not train an LLM.
 
-## Ask in this order
+## Start or resume the conversation
 
-**1. Connected sources.** If the host can reach their mail, chat or documents,
-offer it and say exactly what would be read.
+Call `voiceprint_onboard` with the person's name and their current writing
+task. Infer `register` from the conversation, document or form when useful.
+The user should not have to choose a tone or category. An employer's
+application question is `application`, correspondence is `email`, and a
+message to a friend is `chat`. Use purpose and audience rather than isolated
+keywords. An email about an application is still an email.
 
-> I can build this from your sent mail, which stays on this machine and is not
-> uploaded anywhere. Shall I?
+When the purpose is unknown, begin with general writing. Ask about the task
+only if ambiguity would materially change what you need. Do not guess
+personal facts to fill gaps.
 
-Never read a source they did not agree to. A decline is not a hurdle to route
-around; it moves you to step two.
+Each response contains saved progress and one `next_step`. Ask one question
+at a time and wait for the answer. Resume from the saved collection in later
+turns, rather than restarting or asking an already answered question.
 
-**2. Files they name.** Old documents, notes, posts, decks. Ask for a folder.
+## Offer sources dynamically
 
-**3. Text they paste.** Anything of their own, several hundred words at least.
+Offer a relevant source the host can actually access or the user can supply.
+Describe exactly what you propose reading and ask for agreement before using
+a connector. Record the result with `voiceprint_source_decision`, including
+the agreed scope for `accepted`. Mark inaccessible sources `unavailable`.
+The tools themselves do not connect to mailboxes or scan account history.
 
-4. **Nothing.** Then say so plainly, and offer the prompts.
+Useful sources include:
 
-> I have nothing of your writing to measure, so I can't build a voiceprint.
-> If you point me at a folder, or paste a few hundred words you wrote, I'll
-> build it from that. Or I can ask you a few questions and use the answers.
+- The person's paragraphs in sent emails, excluding replies and signatures.
+- Original application answers from before any assistant rewriting.
+- Their own messages to an assistant, especially explanations and corrections.
+- Personal notes, project explanations and society or team updates.
+- Voice-note transcripts, labelled `spoken` and kept out of written profiles.
 
-Do not offer to approximate. An invented profile is worse than none, because
-everything downstream then trusts it.
+Adapt the order to the task, host capabilities and the user's replies. A
+decline means move on. Do not access the same material through another route.
+An acceptance applies only to its described scope. Ask again before expanding
+it. If they reverse a decision or narrow its scope, update the record. This
+removes that source's collected samples, but an existing profile must be
+rebuilt before the change reaches it. Brief and check tools refuse to use
+the stale profile. The old file remains inspectable and can also be deleted.
 
-## Running it
+If the user asks to skip existing sources and write something new, record
+the remaining suggestions as declined because of that choice. Move directly
+to a writing prompt. Do not make them decline each source separately.
+
+## Save original passages
+
+Read only the agreed material. Separate their words from other people's
+messages, form questions, templates, quoted history and generated answers.
+Use clear original-message evidence or the user's confirmation for authorship.
+If attribution is uncertain, ask one focused question or exclude the sample.
+Approving an assistant's wording does not make it original human writing.
+
+Call `voiceprint_add_sample` for each passage, retaining its text verbatim,
+specific `origin`, `source` and `authorship`. Infer the passage's `register`
+from its own context. Do not tag an old email as an application answer just
+because the current task is a job application. Use `purpose: training` for
+the writing that will build the profile.
+
+The tool rejects assisted or unknown authorship, samples below its word
+minimum, duplicate passages and shared sequences between training and
+validation. It cannot independently prove authorship or detect paraphrases.
+Save each accepted passage immediately so an interruption loses no progress.
+
+## Fill gaps with substantial writing
+
+Call `voiceprint_onboard` again. When its next step is `prompt`, present that
+one question conversationally. Keep the internal `prompt_id` for saving the
+answer, do not show category menus or implementation details to the user.
+
+Invite a substantial account of something familiar. For longer explanations,
+roughly 400 to 600 words is a suggested starting point, not a requirement or
+an accuracy threshold. Emails and chats can be naturally shorter. Do not pad
+short answers or make the person imitate a formal voice.
+
+Let them write without supplying a model answer, starter paragraph or rewrite.
+Ask about real experiences, opinions or choices, rather than asking them to
+describe their style. Preserve the answer verbatim and save it with
+`source: prompt` and the returned `prompt_id`. Report its actual word count
+against the suggestion. They may stop early, continue or supply more sources.
+
+If all built-in prompts are exhausted before there is enough material,
+explain the gap and offer one fresh question on a different familiar topic.
+Save custom answers without a built-in prompt ID, with a descriptive origin
+and a context inferred by the host. Do not repeat already used prompts to
+inflate the word count.
+
+## Check with separate writing
+
+Reserve a separate original passage with `purpose: validation`. Ideally it
+matches the current writing task and discusses different material. Never use
+it in training, prompt selection examples or profile exemplars. The user may
+supply this before reaching the collection goal if they want to stop early.
+
+Call `voiceprint_finish_onboarding`. It builds only from original written
+training samples and checks the validation passages separately. Existing
+profiles require explicit replacement via `overwrite: true`. When rebuilding,
+explain that this uses the session's saved samples. It cannot recover the
+full corpus from an older standalone profile.
+
+Show where the collection and profile were saved, what contexts are covered,
+the actual confidence label and any pooled fallback or short-sample limits.
+Do not equate a passed check, reaching a word goal or one held-out passage
+with proven accuracy. Do not call a provisional profile reliable.
+
+The collection contains raw text under `VOICEPRINT_HOME/onboarding/` or the
+platform data directory. The profile contains measurements and excerpts.
+Explain these local files can be inspected or deleted independently. Do not
+claim the whole conversation stays on-device, the host handles the chat and
+any connector access.
+
+## When MCP tools are unavailable
+
+The same operations are available in `voiceprint.onboarding` as `status`,
+`decide_source`, `add_sample` and `finish`. `add_sample` calls its prompt-ID
+parameter `prompt`. Use the host's Python tools if available. Do not claim
+the integration is active merely because the repo was cloned.
+
+For a one-off file build, the existing CLI remains available:
 
 ```bash
-vp build yash ~/Documents/writing --register essay
-vp build yash --text "$(cat notes.md)" --register note
-```
-
-Or let it offer whatever sources are configured:
-
-```bash
-vp build yash
-```
-
-## What makes a good corpus
-
-**Their own prose, continuous.** Paragraphs, not bullet lists. Long emails,
-memos, posts, notes, speaker notes from old decks. Speaker notes are unusually
-good, because they were written to be spoken and never designed.
-
-**One register at a time where possible.** Genre moves writing at least as
-much as identity does, so mixing emails with formal reports measures the
-mixture. Tag each batch with `--register` and the tool keeps them apart.
-
-**Not anything a model wrote.** A profile taken from generated text teaches
-everything downstream to sound generated. If they hand you something a model
-drafted, say so and ask for something they typed.
-
-**Enough of it.** More than you would expect, though less than it used to be.
-Identity is measured two ways, and the character-texture arm holds up on
-material where word frequencies are still noise, so a 5,000 word profile now
-does what 10,000 used to.
-
-| words | label | what it is worth |
-|---|---|---|
-| 10,000+ | stable | both measures hold |
-| 5,000 to 10,000 | usable | enough to brief with confidence |
-| 1,500 to 5,000 | thin | texture carries identity, directional only |
-| under 1,500 | provisional | shape is real, distances are not |
-
-Do not tell someone their profile is good when it says `provisional`. Say what
-it can do, which is describe how they write, and what it cannot, which is
-recognise them.
-
-## When there is not enough
-
-```bash
+vp build yash ~/Documents/writing --register email
 vp elicit yash
-```
-
-Returns prompts that draw natural prose, chosen to spread across registers
-rather than pile up in one. Put them to the person and collect the answers as
-new samples.
-
-Two rules behind them, worth keeping if you write your own. Never ask someone
-to describe how they write, because the description is aspirational and the
-prose that follows is stilted. Ask about something they already have opinions
-about, because argument produces natural rhythm where description produces
-lists.
-
-Always prefer writing that already exists. Elicited prose is self-conscious by
-construction, so it is the fallback rather than the first move.
-
-## Where it goes
-
-A markdown file, one per person, under `VOICEPRINT_HOME` or the platform data
-directory. Readable, editable, deletable. Show them where it landed and tell
-them they can read it.
-
-```bash
 vp show yash
-vp remove yash
 ```
-
-The prose at the top is for them. The fenced block at the bottom is how the
-tool reads it back.
-
-## Adding to a profile later
-
-`vp build` refuses to overwrite silently. Pass `--force` when they have more
-writing and want it rebuilt, and say that the old one is being replaced.
-
-## Checking it worked
-
-```bash
-vp diff yash something-they-wrote.md
-python scripts/discrimination.py --corpus DIR
-```
-
-Run the first against a piece of their writing that was not in the corpus.
-Run the second if you have several people's writing: it holds each text out
-and asks which profile it lands nearest, which is the only honest test of
-whether the profile identifies anyone.
-
-If discrimination sits near chance, the corpus is too small or too mixed. That
-is information, not failure, and it should be reported rather than hidden.
